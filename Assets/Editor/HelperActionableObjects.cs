@@ -31,4 +31,11 @@ public class HelperActionableObjects : Editor {
         }
         
     }
+
+    //public override void OnInspectorGUI()
+    //{
+    //    WeigthButton myTarget= (WeigthButton)target;
+    //    EditorGUIUtility.LookLikeControls();
+    //    EditorGUI.indentLevel = 0;
+    //} 
 }
