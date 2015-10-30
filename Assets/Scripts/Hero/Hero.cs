@@ -15,7 +15,7 @@ public abstract class Hero : MonoBehaviour {
 	[SerializeField] private Collider2D heroPlatform = null;
 	[SerializeField] private Collider2D bodyCollider = null;
 	[SerializeField] private HingeJoint2D walkMotor = null;
-
+	[SerializeField] private Collider2D footCollider = null;
 
 	private float motorMaxAngularSpeed = 0f;
 	private bool m_FacingRight = true;
@@ -53,7 +53,10 @@ public abstract class Hero : MonoBehaviour {
 	public void Move(float horizontalMove, bool crouch, bool jump){
 
 		//TODO better method to check if grounded
-		bool grounded = Physics2D.OverlapCircle (transform.position, 0.2f, whatIsGround.value | heroPlatformMask.value | mapInteractiveObjectsMask.value);
+		//old way:
+		//bool grounded = Physics2D.OverlapCircle (transform.position, 0.2f, whatIsGround.value | heroPlatformMask.value | mapInteractiveObjectsMask.value);
+		//new way:
+		bool grounded = footCollider.IsTouchingLayers (whatIsGround.value | heroPlatformMask.value | mapInteractiveObjectsMask.value);
 
 		//WALK HORIZONTALY
 		if (grounded) {
@@ -74,35 +77,41 @@ public abstract class Hero : MonoBehaviour {
 
 		//CROUCH
 		if (crouch) {
-			//headCollider.isTrigger = crouch;
-			heroPlatform.offset = bodyCollider.offset +  new Vector2(0, bodyCollider.bounds.extents.y - heroPlatform.bounds.extents.y);
+			heroPlatform.offset = headCollider.offset -  new Vector2(0, heroPlatform.bounds.size.y);
 			//Crouch Animation
 			animator.SetBool ("crouch", true);
 		} else if (!crouch && !Physics2D.OverlapArea (headCollider.bounds.min, headCollider.bounds.max, whatIsGround.value)) {
-			heroPlatform.offset = bodyCollider.offset +  new Vector2(0, bodyCollider.bounds.extents.y + heroPlatform.bounds.extents.y);
+			heroPlatform.offset = headCollider.offset;
 			//Crouch Animatio
 			animator.SetBool ("crouch", false);
 		}
 
 		//JUMP, IF GROUDED OR ON OTHER HERO PLATFORM
 		if (jump && grounded) {
+			animator.SetTrigger("jumpStart");
 			foreach (Rigidbody2D rg2d in transform.GetComponentsInChildren<Rigidbody2D>())
 				rg2d.velocity = new Vector2(rigidBody2D.velocity.x, 0);
 			rigidBody2D.AddForce (new Vector2 (0f, (float)jumpForce), ForceMode2D.Impulse);
+            SoundManager.Instance.SendMessage("PlaySFXJump");
 		}
 
-		if (grounded)
+		if (grounded) {
 			m_onAir = false;
-		else
+			animator.SetBool ("jumpOnAir", false);
+		}
+		else {
 			m_onAir = true;
+			animator.SetBool ("jumpOnAir", true);
+		}
 
+		//Flip the animation
 		if ((horizontalMove > 0 && !m_FacingRight) || (horizontalMove < 0 && m_FacingRight)) {
-			//Flip the animation
+
 			// Switch the way the player is labelled as facing.
 			m_FacingRight = !m_FacingRight;
 		
 			// Multiply the player's x local scale by -1.
-			Transform rendererTransform = GetComponentInChildren<SpriteRenderer>().transform;
+			Transform rendererTransform = transform.Find("Renderer").transform;
 			Vector3 theScale = rendererTransform.localScale;
 			theScale.x *= -1;
 			rendererTransform.localScale = theScale;
@@ -146,6 +155,45 @@ public abstract class Hero : MonoBehaviour {
 		tMotor.maxMotorTorque = walkMotorTorque;
 		walkMotor.motor = tMotor;
 	}
+
+    private void DoAction()
+    {
+        Renderer r = GetComponentInChildren<Renderer>();
+        Vector2 a = new Vector2(transform.position.x - r.bounds.extents.x, transform.position.y - r.bounds.extents.x);
+        Vector2 b = new Vector2(transform.position.x + r.bounds.extents.x, transform.position.y + r.bounds.extents.x);
+        Collider2D coll = Physics2D.OverlapArea(a, b, 1 << 11);
+
+        if (coll != null)
+        {
+            switch (coll.tag)
+            {
+                case "Lever":
+                    {
+
+                        coll.SendMessage("ChangeState");
+                        break;
+                    }
+                default:
+                    {
+                        break;
+                    }
+            }
+        }
+    }
+
+    private void TouchedForceField()
+    {
+        float speed = 2;
+
+        if (m_FacingRight)
+        {
+            rigidBody2D.AddForce(new Vector2(maxWalkingSpeed * -speed, 0), ForceMode2D.Impulse);
+        }
+        else
+        {
+            rigidBody2D.AddForce(new Vector2(maxWalkingSpeed * speed, 0), ForceMode2D.Impulse);
+        }
+    }
 
 	public float JumpHeight {
 		get {
@@ -199,8 +247,6 @@ public abstract class Hero : MonoBehaviour {
 		}
 
 	}
-
-
 
 
 }
